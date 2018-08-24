@@ -1,0 +1,20 @@
+This distribution of PostgreSQL 10.4 includes the following patches
+specific to CSE, as used by COMP9315 18s2.  For an unmodified copy,
+head to <https://www.postgresql.org/>, or back these patches out.
+
+    ~jashank
+
+--- src/backend/storage/ipc/latch.c.orig	2018-05-08 06:51:40.000000000 +1000
++++ src/backend/storage/ipc/latch.c	2018-07-23 17:35:00.000000000 +1000
+@@ -38,6 +38,11 @@
+ #include <unistd.h>
+ #ifdef HAVE_SYS_EPOLL_H
+ #include <sys/epoll.h>
++// XXX (jashankj, 2018-07-23):
++//     epoll_create1(2) is broken on grieg.  `EPOLL_CLOEXEC' is used to
++//     detect its presence; unfortunately, glibc on grieg doesn't match
++//     the ancient kernel, so explicitly undefine it.
++#undef EPOLL_CLOEXEC
+ #endif
+ #ifdef HAVE_POLL_H
+ #include <poll.h>

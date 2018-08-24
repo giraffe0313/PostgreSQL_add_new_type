@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "brin_internal.h": "c",
+        "typcache.h": "c",
+        "fmgr.h": "c"
+    }
+}
