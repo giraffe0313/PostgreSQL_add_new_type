@@ -50,6 +50,17 @@ void value_print(hash_node *hash_int_set, int x);
 /* change hash int set to int array */
 int *hash2arry(hash_node *hash_int_set, int number_of_value);
 
+/* quick sort function */
+void swap(int* a, int* b);
+int partition (int arr[], int low, int high);
+void quickSort(int arr[], int low, int high);
+
+/* binary search function */
+int binarySearch(int arr[], int l, int r, int x)
+
+/*****************************************************************************
+ * Input/Output functions
+ *****************************************************************************/
 
 /* intset in function */
 PG_FUNCTION_INFO_V1(intset_in);
@@ -134,12 +145,14 @@ intset_in(PG_FUNCTION_ARGS)
     }
     
     array_int = hash2arry(hash_int_set, number_of_value);
-    
+    quickSort(array_int, 0, number_of_value);
+
 	Intset *t = (Intset *) palloc(VARHDRSZ + number_of_value * sizeof(int));
 	SET_VARSIZE(t, VARHDRSZ + number_of_value * sizeof(int));
 	memcpy(t -> data, array_int, number_of_value * sizeof(int));
     PG_RETURN_POINTER(t);
 }
+
 
 
 /* intset out function */
@@ -164,10 +177,78 @@ intset_out(PG_FUNCTION_ARGS)
 			result = psprintf("%s,%d", result, intset -> data[i]);
 		}
 	}
-	result = psprintf("%s}", result);
+	result = psprintf("%s} %d", result, intset -> length);
 	PG_RETURN_CSTRING(result);
 }
 
+/*****************************************************************************
+ * New Operators
+ *
+ * A practical Intset datatype would provide much more than this, of course.
+ *****************************************************************************/
+
+/* i <@ S intSet S contains the integer i */
+PG_FUNCTION_INFO_V1(intset_contain_integer);
+
+Datum
+intset_contain_integer(PG_FUNCTION_ARGS)
+{
+    int a = PG_GETARG_POINTER(0);
+    Intset *intset = (Intset *) PG_GETARG_POINTER(1);
+    int number_of_value = (intset -> length) / 16  - 1;
+    /* no element in data */
+    if (number_of_value == 0) {
+        PG_RETURN_BOOL(0);
+    } 
+    int r = binarySearch(intset -> data, 0, number_of_value - 1, a);
+    PG_RETURN_BOOL((r != -1));
+}
+
+/* @ S number of distinct elements in S, |S| */
+PG_FUNCTION_INFO_V1(intset_distinct_number);
+
+Datum
+intset_distinct_number(PG_FUNCTION_ARGS)
+{
+    Intset *intset = (Intset *) PG_GETARG_POINTER(0);
+    PG_RETURN_INT32((intset -> length) / 16  - 1);
+}
+
+/* A @> B does intSet A contain only values in intSet B */
+PG_FUNCTION_INFO_V1(intset_check_subset);
+Datum
+intset_check_subset(PG_FUNCTION_ARGS) {
+    Intset *A = (Intset *) PG_GETARG_POINTER(0);
+    Intset *B = (Intset *) PG_GETARG_POINTER(1);
+    int A_number = (A -> length) / 16  - 1;
+    int B_number = (B -> length) / 16  - 1;
+    int i, r;
+    if (A_number == 0 || (A_number > B_number)) {
+        PG_RETURN_BOOL(0);
+    }
+    for (i = 0; i < A_number; i++) {
+        r = binarySearch(B -> data, 0, B_number - 1, A->data[i]);
+        if (r == -1) PG_RETURN_BOOL(0);
+    }
+    PG_RETURN_BOOL(1);
+}
+
+/* A = B intSets A and B are equal */
+PG_FUNCTION_INFO_V1(intset_check_equal);
+Datum
+intset_check_equal(PG_FUNCTION_ARGS) {
+    Intset *A = (Intset *) PG_GETARG_POINTER(0);
+    Intset *B = (Intset *) PG_GETARG_POINTER(1);
+    int A_number = (A -> length) / 16  - 1;
+    int B_number = (B -> length) / 16  - 1;
+    int i;
+    if (A_number != B_number) PG_RETURN_BOOL(0);
+    if (A_number == 0) PG_RETURN_BOOL(1);
+    for (i = 0; i < A_number; i++) {
+        if (A -> data[i] != B -> data[i]) PG_RETURN_BOOL(0);
+    }
+    PG_RETURN_BOOL(1);
+}
 
 
 
@@ -278,4 +359,63 @@ int *hash2arry(hash_node *hash_int_set, int number_of_value) {
     }
     free(hash_int_set);
     return result;
+}
+
+/* quick sort function */
+void swap(int* a, int* b)
+{
+    int t = *a;
+    *a = *b;
+    *b = t;
+}
+
+int partition (int arr[], int low, int high)
+{
+    int pivot = arr[high];    // pivot
+    int i = (low - 1);  // Index of smaller element
+    int j;
+    for (j = low; j <= high- 1; j++)
+    {
+        // If current element is smaller than or
+        // equal to pivot
+        if (arr[j] <= pivot)
+        {
+            i++;    // increment index of smaller element
+            swap(&arr[i], &arr[j]);
+        }
+    }
+    swap(&arr[i + 1], &arr[high]);
+    return (i + 1);
+}
+
+void quickSort(int arr[], int low, int high)
+{
+    if (low < high)
+    {
+        /* pi is partitioning index, arr[p] is now
+         at right place */
+        int pi = partition(arr, low, high);
+        
+        // Separately sort elements before
+        // partition and after partition
+        quickSort(arr, low, pi - 1);
+        quickSort(arr, pi + 1, high);
+    }
+}
+
+/* binary search */
+
+int binarySearch(int arr[], int l, int r, int x) {
+   if (r >= l)
+   {
+        int mid = l + (r - l)/2;
+        if (arr[mid] == x)  
+            return mid;
+
+        if (arr[mid] > x) 
+            return binarySearch(arr, l, mid-1, x);
+
+        return binarySearch(arr, mid+1, r, x);
+   }
+   return -1;
 }
