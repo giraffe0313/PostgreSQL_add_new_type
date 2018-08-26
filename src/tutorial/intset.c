@@ -65,14 +65,15 @@ intset_in(PG_FUNCTION_ARGS)
     int i;
     int string_length = strlen(s);
 
-	int empty_flag = 0;
-    int start = 0;
-    int next_start = 0;
-    int assign_flag = 0;
-    int end;
-	int result;
+    
+	int empty_flag = 0;         /* check input string is empty or not */
+    int start = 0;              /* the position start to convert to int */
+    int next_start = 0;         /* next position to convert */
+    int assign_flag = 0;        /* check reach the end of string */
+    int end;                    /* the position end to convert to int */
+	int result;                 /* convert result */
 
-	int *array_int;
+	int *array_int;             /* the final int result */
 
 
     if (s[0] != '{' || s[string_length - 1] != '}') {
@@ -87,7 +88,7 @@ intset_in(PG_FUNCTION_ARGS)
 		SET_VARSIZE(t, VARHDRSZ);
         PG_RETURN_POINTER(t);
     }
-
+    /* find the next converting position */
     while (next_start < string_length - 1) {
         start = next_start + 1;
         assign_flag = 0;
@@ -98,14 +99,17 @@ intset_in(PG_FUNCTION_ARGS)
                 break;
             }
         }
+        /* check reach the end of string or not */
         if (!assign_flag) {
             if (start == 1) empty_flag = 1;
             next_start = string_length - 1;
         }
+        /* ignore the spaces after integer */
         end = next_start - 1;
         while (end >= start && s[end] == ' ') {
             end--;
         }
+        /* empty string or occur invalid space */
         if (end < start) {
             if (!empty_flag) {
                 ereport(ERROR,
@@ -115,11 +119,10 @@ intset_in(PG_FUNCTION_ARGS)
                 Intset *t = (Intset *) palloc(VARHDRSZ);
 				SET_VARSIZE(t, VARHDRSZ);
         		PG_RETURN_POINTER(t);
-				
             }
             
         }
-        
+        /* check the string is valid or not */
         if (get_next_number(s, start, end, &result) == CONVERT_SUCCESS) {
             insert_value(hash_int_set, result, &number_of_value);
         } else {
@@ -131,10 +134,7 @@ intset_in(PG_FUNCTION_ARGS)
     }
     
     array_int = hash2arry(hash_int_set, number_of_value);
-    // for (i = 0; i < number_of_value; i++) {
-    //     printf("%d\n", array_int[i]);s
-    // }
-
+    
 	Intset *t = (Intset *) palloc(VARHDRSZ + number_of_value * sizeof(int));
 	SET_VARSIZE(t, VARHDRSZ + number_of_value * sizeof(int));
 	memcpy(t -> data, array_int, number_of_value * sizeof(int));
