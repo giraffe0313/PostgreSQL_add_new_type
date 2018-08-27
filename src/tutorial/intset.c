@@ -15,6 +15,7 @@
 #include "fmgr.h"
 #include "libpq/pqformat.h"		/* needed for send/recv functions */
 #include "../include/utils/builtins.h"
+#define HASH_NUMBER 1024
 
 PG_MODULE_MAGIC;
 
@@ -56,7 +57,7 @@ int partition (int arr[], int low, int high);
 void quickSort(int arr[], int low, int high);
 
 /* binary search function */
-int binarySearch(int arr[], int l, int r, int x)
+int binarySearch(int arr[], int l, int r, int x);
 
 /*****************************************************************************
  * Input/Output functions
@@ -145,11 +146,13 @@ intset_in(PG_FUNCTION_ARGS)
     }
     
     array_int = hash2arry(hash_int_set, number_of_value);
-    quickSort(array_int, 0, number_of_value);
-
+    // free(hash_int_set);
+    // quickSort(array_int, 0, number_of_value);
+    number_of_value++;
 	Intset *t = (Intset *) palloc(VARHDRSZ + number_of_value * sizeof(int));
 	SET_VARSIZE(t, VARHDRSZ + number_of_value * sizeof(int));
 	memcpy(t -> data, array_int, number_of_value * sizeof(int));
+    free(array_int);
     PG_RETURN_POINTER(t);
 }
 
@@ -163,8 +166,9 @@ intset_out(PG_FUNCTION_ARGS)
 {
 
 	Intset *intset = (Intset *) PG_GETARG_POINTER(0);
-	char *result;
-	int number_of_value = (intset -> length) / 16  - 1; 
+	// char *result;
+	int number_of_value = (intset -> length) / 16  - 1;
+    char *result = malloc((number_of_value + 2) * sizeof(int)); 
 	int i;
 	if (number_of_value == 0) {
 		result = "{ }";
@@ -255,8 +259,8 @@ intset_check_equal(PG_FUNCTION_ARGS) {
 /* 		string process  	*/
 convert_result convert_str2int(int *out, char *s) {
     char *errstr;
-    long l = strtoll(s, &errstr, 10);
-    if (l > 2147483647 || (errno == ERANGE && l == 2147483647))
+    long l = strtol(s, &errstr, 10);
+    if (l > INT32_MAX || (errno == ERANGE && l == INT32_MAX))
         return CONVERT_OVERFLOW;
     if (l < INT32_MIN || (errno == ERANGE && l == INT32_MIN))
         return CONVERT_UNDERFOW;
@@ -281,14 +285,14 @@ convert_result get_next_number(char *s, int start, int end, int *out) {
 /*       hash set function     */
 
 int hash_function(int x) {
-    if (x < 0) return x % 1024 + 1024;
-    return x % 1024;
+    if (x < 0) return x % HASH_NUMBER + HASH_NUMBER;
+    return x % HASH_NUMBER;
 }
 
 hash_node *init_hash_set() {
-    hash_node *x = malloc(1024 * sizeof(hash_node));
+    hash_node *x = malloc(HASH_NUMBER * sizeof(hash_node));
     int i;
-    for (i = 0; i < 1024; i++) {
+    for (i = 0; i < HASH_NUMBER; i++) {
         x[i].value = 0;
         x[i].exist = 0;
         x[i].next = NULL;
@@ -341,16 +345,17 @@ void value_print(hash_node *hash_int_set, int x) {
 
 /* change hash to int array */
 int *hash2arry(hash_node *hash_int_set, int number_of_value) {
-    int *result = malloc(number_of_value * sizeof(int));
+    int *result = calloc(number_of_value, sizeof(int));
     int i;
     int total_number = 0;
-    for (i = 0; i < 1024; i++) {
+    for (i = 0; i < HASH_NUMBER; i++) {
         if (hash_int_set[i].exist) {
             result[total_number] = hash_int_set[i].value;
             total_number++;
             hash_node *temp = hash_int_set[i].next;
             while (temp) {
                 result[total_number] = temp -> value;
+                total_number++;
                 hash_node *last = temp;
                 temp = temp -> next;
                 free(last);
