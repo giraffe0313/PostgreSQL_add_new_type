@@ -52,9 +52,11 @@ void value_print(hash_node *hash_int_set, int x);
 int *hash2arry(hash_node *hash_int_set, int number_of_value);
 
 /* quick sort function */
-void swap(int* a, int* b);
-int partition (int arr[], int low, int high);
-void quickSort(int arr[], int low, int high);
+int partition(int arr[], int low, int high);
+void quick_sort(int arr[], int start, int end);
+// void swap(int* a, int* b);
+// int partition (int arr[], int low, int high);
+// void quickSort(int arr[], int low, int high);
 
 /* binary search function */
 int binarySearch(int arr[], int l, int r, int x);
@@ -147,8 +149,7 @@ intset_in(PG_FUNCTION_ARGS)
     
     array_int = hash2arry(hash_int_set, number_of_value);
     // free(hash_int_set);
-    // quickSort(array_int, 0, number_of_value);
-    number_of_value++;
+    quick_sort(array_int, 0, number_of_value - 1);
 	Intset *t = (Intset *) palloc(VARHDRSZ + number_of_value * sizeof(int));
 	SET_VARSIZE(t, VARHDRSZ + number_of_value * sizeof(int));
 	memcpy(t -> data, array_int, number_of_value * sizeof(int));
@@ -168,20 +169,22 @@ intset_out(PG_FUNCTION_ARGS)
 	Intset *intset = (Intset *) PG_GETARG_POINTER(0);
 	// char *result;
 	int number_of_value = (intset -> length) / 16  - 1;
-    char *result = malloc((number_of_value + 2) * sizeof(int)); 
+    // char *result = malloc((number_of_value + 2) * sizeof(int)); 
+    char *result = "{";
 	int i;
 	if (number_of_value == 0) {
 		result = "{ }";
 		PG_RETURN_CSTRING(result);
 	}
+    
 	for (i = 0; i < number_of_value; i++) {
 		if (i == 0) {
-			result = psprintf("{%d", intset -> data[i]);
+			result = psprintf("%s%d", result, intset -> data[i]);
 		} else {
 			result = psprintf("%s,%d", result, intset -> data[i]);
 		}
 	}
-	result = psprintf("%s} %d", result, intset -> length);
+	result = psprintf("%s}", result, intset -> length);
 	PG_RETURN_CSTRING(result);
 }
 
@@ -252,6 +255,166 @@ intset_check_equal(PG_FUNCTION_ARGS) {
         if (A -> data[i] != B -> data[i]) PG_RETURN_BOOL(0);
     }
     PG_RETURN_BOOL(1);
+}
+
+/* A && B takes the set intersection */
+PG_FUNCTION_INFO_V1(intset_set_intersection);
+Datum
+intset_set_intersection(PG_FUNCTION_ARGS) {
+    Intset *A = (Intset *) PG_GETARG_POINTER(0);
+    Intset *B = (Intset *) PG_GETARG_POINTER(1);
+    int A_number = (A -> length) / 16  - 1;
+    int B_number = (B -> length) / 16  - 1;
+    int i = 0;
+    int j = 0;
+    int first = 1;
+    char *result = "{";
+    while (i < A_number && j < B_number) {
+        if (A -> data[i] == B -> data[j]) {
+            if (first) {
+                result = psprintf("%s%d", result, A -> data[i]);
+                first = 0;
+            } else {
+                result = psprintf("%s,%d", result, A -> data[i]);
+            }
+            i++; j++;
+        } else if (A -> data[i] < B -> data[j]) {
+            i++;
+        } else {
+            j++;
+        }
+    }
+    result = psprintf("%s}", result);
+    PG_RETURN_CSTRING(result);
+}
+
+/* A || B takes the set union */
+PG_FUNCTION_INFO_V1(intset_set_union);
+Datum
+intset_set_union(PG_FUNCTION_ARGS) {
+    Intset *A = (Intset *) PG_GETARG_POINTER(0);
+    Intset *B = (Intset *) PG_GETARG_POINTER(1);
+    int A_number = (A -> length) / 16  - 1;
+    int B_number = (B -> length) / 16  - 1;
+    if (!A_number && !B_number) {
+        PG_RETURN_CSTRING("{}");
+    }
+    int i = 0;
+    int j = 0;
+    int first = 1;
+    char *result = "{";
+    while (i < A_number && j < B_number) {
+        if (A -> data[i] == B -> data[j]) {
+            first = 0;
+            result = psprintf("%s%d,", result, A -> data[i]);
+            i++; j++;
+        } else if (A -> data[i] < B -> data[j]) {
+            first = 0;
+            result = psprintf("%s%d,", result, A -> data[i]);
+            i++;
+        } else {
+            first = 0;
+            result = psprintf("%s%d,", result, B -> data[j]);
+            j++;
+        }
+    }
+    while (i < A_number) {
+        first = 0;
+        result = psprintf("%s%d,", result, A -> data[i]);
+        i++;
+    }
+    while (j < B_number) {
+        first = 0;
+        result = psprintf("%s%d,", result, B -> data[j]);
+        j++;
+    }
+    if (first) PG_RETURN_CSTRING("{}");
+    result[strlen(result)-1] = 0;
+    result = psprintf("%s}", result);
+    PG_RETURN_CSTRING(result);
+}
+
+
+/* A !! B takes the set disjunction */
+PG_FUNCTION_INFO_V1(intset_set_disjunction);
+Datum
+intset_set_disjunction(PG_FUNCTION_ARGS) {
+    Intset *A = (Intset *) PG_GETARG_POINTER(0);
+    Intset *B = (Intset *) PG_GETARG_POINTER(1);
+    int A_number = (A -> length) / 16  - 1;
+    int B_number = (B -> length) / 16  - 1;
+    if (!A_number && !B_number) {
+        PG_RETURN_CSTRING("{}");
+    }
+    int i = 0;
+    int j = 0;
+    int first = 1;
+    char *result = "{";
+    while (i < A_number && j < B_number) {
+        if (A -> data[i] == B -> data[j]) {
+            i++; j++;
+        } else if (A -> data[i] < B -> data[j]) {
+            first = 0;
+            result = psprintf("%s%d,", result, A -> data[i]);
+            i++;
+        } else {
+            first = 0;
+            result = psprintf("%s%d,", result, B -> data[j]);
+            j++;
+        }
+    }
+    while (i < A_number) {
+        first = 0;
+        result = psprintf("%s%d,", result, A -> data[i]);
+        i++;
+    }
+    while (j < B_number) {
+        first = 0;
+        result = psprintf("%s%d,", result, B -> data[j]);
+        j++;
+    }
+    if (first) PG_RETURN_CSTRING("{}");
+    result[strlen(result)-1] = 0;
+    result = psprintf("%s}", result);
+    PG_RETURN_CSTRING(result);
+}
+
+/* A - B takes the set difference */
+PG_FUNCTION_INFO_V1(intset_set_difference);
+Datum
+intset_set_difference(PG_FUNCTION_ARGS) {
+    Intset *A = (Intset *) PG_GETARG_POINTER(0);
+    Intset *B = (Intset *) PG_GETARG_POINTER(1);
+    int A_number = (A -> length) / 16  - 1;
+    int B_number = (B -> length) / 16  - 1;
+    if (!A_number && !B_number) {
+        PG_RETURN_CSTRING("{}");
+    }
+    int i = 0;
+    int j = 0;
+    int first = 1;
+    char *result = "{";
+    while (i < A_number && j < B_number) {
+        if (A -> data[i] == B -> data[j]) {
+            i++; j++;
+        } else if (A -> data[i] < B -> data[j]) {
+            first = 0;
+            result = psprintf("%s%d,", result, A -> data[i]);
+            i++;
+        } else {
+            j++;
+        }
+    }
+    while (i < A_number) {
+        first = 0;
+        result = psprintf("%s%d,", result, A -> data[i]);
+        i++;
+    }
+
+    if (first) PG_RETURN_CSTRING("{}");
+    result[strlen(result)-1] = 0;
+    result = psprintf("%s}", result);
+    PG_RETURN_CSTRING(result);
 }
 
 
@@ -366,49 +529,79 @@ int *hash2arry(hash_node *hash_int_set, int number_of_value) {
     return result;
 }
 
+
 /* quick sort function */
-void swap(int* a, int* b)
-{
-    int t = *a;
-    *a = *b;
-    *b = t;
-}
-
-int partition (int arr[], int low, int high)
-{
-    int pivot = arr[high];    // pivot
-    int i = (low - 1);  // Index of smaller element
-    int j;
-    for (j = low; j <= high- 1; j++)
-    {
-        // If current element is smaller than or
-        // equal to pivot
-        if (arr[j] <= pivot)
-        {
-            i++;    // increment index of smaller element
-            swap(&arr[i], &arr[j]);
-        }
+int partition(int arr[], int low, int high){
+    int key;
+    key = arr[low];
+    while(low<high){
+        while(low <high && arr[high]>= key )
+            high--;
+        if(low<high)
+            arr[low++] = arr[high];
+        while( low<high && arr[low]<=key )
+            low++;
+        if(low<high)
+            arr[high--] = arr[low];
     }
-    swap(&arr[i + 1], &arr[high]);
-    return (i + 1);
+    arr[low] = key;
+    return low;
+}
+void quick_sort(int arr[], int start, int end){
+    int pos;
+    if (start<end){
+        pos = partition(arr, start, end);
+        quick_sort(arr,start,pos-1);
+        quick_sort(arr,pos+1,end);
+    }
+    return;
 }
 
-void quickSort(int arr[], int low, int high)
-{
-    if (low < high)
-    {
-        /* pi is partitioning index, arr[p] is now
-         at right place */
-        int pi = partition(arr, low, high);
+
+
+
+// void swap(int* a, int* b)
+// {
+//     int t = *a;
+//     *a = *b;
+//     *b = t;
+// }
+
+// int partition (int arr[], int low, int high)
+// {
+//     int pivot = arr[high];    // pivot
+//     int i = (low - 1);  // Index of smaller element
+//     int j;
+//     for (j = low; j <= high- 1; j++)
+//     {
+//         // If current element is smaller than or
+//         // equal to pivot
+//         if (arr[j] <= pivot)
+//         {
+//             i++;    // increment index of smaller element
+//             swap(&arr[i], &arr[j]);
+//         }
+//     }
+//     swap(&arr[i + 1], &arr[high]);
+//     return (i + 1);
+// }
+
+// void quickSort(int arr[], int low, int high)
+// {
+//     if (low < high)
+//     {
+//         /* pi is partitioning index, arr[p] is now
+//          at right place */
+//         int pi = partition(arr, low, high);
         
-        // Separately sort elements before
-        // partition and after partition
-        quickSort(arr, low, pi - 1);
-        quickSort(arr, pi + 1, high);
-    }
-}
+//         // Separately sort elements before
+//         // partition and after partition
+//         quickSort(arr, low, pi - 1);
+//         quickSort(arr, pi + 1, high);
+//     }
+// }
 
-/* binary search */
+// /* binary search */
 
 int binarySearch(int arr[], int l, int r, int x) {
    if (r >= l)
