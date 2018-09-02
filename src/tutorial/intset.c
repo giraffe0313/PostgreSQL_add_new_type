@@ -24,7 +24,6 @@ typedef struct {
 	int data[FLEXIBLE_ARRAY_MEMBER];
 } Intset;
 
-
 /* string process function*/
 typedef enum {
     CONVERT_SUCCESS,
@@ -54,9 +53,6 @@ int *hash2arry(hash_node *hash_int_set, int number_of_value);
 /* quick sort function */
 int partition(int arr[], int low, int high);
 void quick_sort(int arr[], int start, int end);
-// void swap(int* a, int* b);
-// int partition (int arr[], int low, int high);
-// void quickSort(int arr[], int low, int high);
 
 /* binary search function */
 int binarySearch(int arr[], int l, int r, int x);
@@ -88,7 +84,6 @@ intset_in(PG_FUNCTION_ARGS)
 	int result;                 /* convert result */
 
 	int *array_int;             /* the final int result */
-
 
     if (s[0] != '{' || s[string_length - 1] != '}') {
         ereport(ERROR,
@@ -148,7 +143,6 @@ intset_in(PG_FUNCTION_ARGS)
     }
     
     array_int = hash2arry(hash_int_set, number_of_value);
-    // free(hash_int_set);
     quick_sort(array_int, 0, number_of_value - 1);
 	Intset *t = (Intset *) palloc(VARHDRSZ + number_of_value * sizeof(int));
 	SET_VARSIZE(t, VARHDRSZ + number_of_value * sizeof(int));
@@ -167,9 +161,7 @@ intset_out(PG_FUNCTION_ARGS)
 {
 
 	Intset *intset = (Intset *) PG_GETARG_POINTER(0);
-	// char *result;
 	int number_of_value = (intset -> length) / 16  - 1;
-    // char *result = malloc((number_of_value + 2) * sizeof(int)); 
     char *result = "{";
 	int i;
 	if (number_of_value == 0) {
@@ -543,50 +535,6 @@ void quick_sort(int arr[], int start, int end){
     }
     return;
 }
-
-
-
-
-// void swap(int* a, int* b)
-// {
-//     int t = *a;
-//     *a = *b;
-//     *b = t;
-// }
-
-// int partition (int arr[], int low, int high)
-// {
-//     int pivot = arr[high];    // pivot
-//     int i = (low - 1);  // Index of smaller element
-//     int j;
-//     for (j = low; j <= high- 1; j++)
-//     {
-//         // If current element is smaller than or
-//         // equal to pivot
-//         if (arr[j] <= pivot)
-//         {
-//             i++;    // increment index of smaller element
-//             swap(&arr[i], &arr[j]);
-//         }
-//     }
-//     swap(&arr[i + 1], &arr[high]);
-//     return (i + 1);
-// }
-
-// void quickSort(int arr[], int low, int high)
-// {
-//     if (low < high)
-//     {
-//         /* pi is partitioning index, arr[p] is now
-//          at right place */
-//         int pi = partition(arr, low, high);
-        
-//         // Separately sort elements before
-//         // partition and after partition
-//         quickSort(arr, low, pi - 1);
-//         quickSort(arr, pi + 1, high);
-//     }
-// }
 
 // /* binary search */
 

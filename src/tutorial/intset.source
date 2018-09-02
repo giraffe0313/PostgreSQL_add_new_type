@@ -1,36 +1,21 @@
----------------------------------------------------------------------------
---
--- complex.sql-
---    This file shows how to create a new user-defined type and how to
---    use this new type.
---
---
--- Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
--- Portions Copyright (c) 1994, Regents of the University of California
---
--- src/tutorial/complex.source
---
----------------------------------------------------------------------------
-
 -----------------------------
 -- Creating a new type:
---	We are going to create a new type called 'complex' which represents
---	complex numbers.
---	A user-defined type must have an input and an output function, and
---	optionally can have binary input and output functions.  All of these
---	are usually user-defined C functions.
+--	We are going to create a new type called 'iset' which represents
+--	an int set.
+--	A user-defined type must have an input and an output function.  
+--  All of these are usually user-defined C functions.
 -----------------------------
 
--- Assume the user defined functions are in _OBJWD_/complex$DLSUFFIX
+-- Assume the user defined functions are in _OBJWD_/iset$DLSUFFIX
 -- (we do not want to assume this is in the dynamic loader search path).
--- Look at $PWD/complex.c for the source.  Note that we declare all of
+-- Look at $PWD/iset.c for the source.  Note that we declare all of
 -- them as STRICT, so we do not need to cope with NULL inputs in the
 -- C code.  We also mark them IMMUTABLE, since they always return the
 -- same outputs given the same inputs.
 
--- the input function 'complex_in' takes a null-terminated string (the
+-- the input function 'iset_in' takes a null-terminated string (the
 -- textual representation of the type) and turns it into the internal
--- (in memory) representation. You will get a message telling you 'complex'
+-- (in memory) representation. You will get a message telling you 'iset'
 -- does not exist yet but that's okay.
 
 CREATE FUNCTION intset_in(cstring)
@@ -38,8 +23,8 @@ CREATE FUNCTION intset_in(cstring)
    AS '_OBJWD_/intset'
    LANGUAGE C IMMUTABLE STRICT;
 
--- the output function 'complex_out' takes the internal representation and
--- converts it into the textual representation.
+-- the output function 'iset_out' takes the internal representation and
+-- converts it into the int set representation.
 
 CREATE FUNCTION intset_out(intset)
    RETURNS cstring
