@@ -173,7 +173,7 @@ intset_out(PG_FUNCTION_ARGS)
     char *result = "{";
 	int i;
 	if (number_of_value == 0) {
-		result = "{ }";
+		result = "{}";
 		PG_RETURN_CSTRING(result);
 	}
     
@@ -184,7 +184,7 @@ intset_out(PG_FUNCTION_ARGS)
 			result = psprintf("%s,%d", result, intset -> data[i]);
 		}
 	}
-	result = psprintf("%s}", result, intset -> length);
+	result = psprintf("%s}", result);
 	PG_RETURN_CSTRING(result);
 }
 
@@ -200,7 +200,7 @@ PG_FUNCTION_INFO_V1(intset_contain_integer);
 Datum
 intset_contain_integer(PG_FUNCTION_ARGS)
 {
-    int a = PG_GETARG_POINTER(0);
+    int a = (int) PG_GETARG_POINTER(0);
     Intset *intset = (Intset *) PG_GETARG_POINTER(1);
     int number_of_value = (intset -> length) / 16  - 1;
     /* no element in data */
@@ -267,25 +267,24 @@ intset_set_intersection(PG_FUNCTION_ARGS) {
     int B_number = (B -> length) / 16  - 1;
     int i = 0;
     int j = 0;
-    int first = 1;
-    char *result = "{";
+    int *x = malloc((A_number + B_number) * sizeof(int));
+    int total_n = 0;
     while (i < A_number && j < B_number) {
         if (A -> data[i] == B -> data[j]) {
-            if (first) {
-                result = psprintf("%s%d", result, A -> data[i]);
-                first = 0;
-            } else {
-                result = psprintf("%s,%d", result, A -> data[i]);
-            }
-            i++; j++;
+            x[total_n] = A -> data[i];
+            i++; j++; total_n++;
         } else if (A -> data[i] < B -> data[j]) {
             i++;
         } else {
             j++;
         }
     }
-    result = psprintf("%s}", result);
-    PG_RETURN_CSTRING(result);
+
+    Intset *t = (Intset *) palloc(VARHDRSZ + total_n * sizeof(int));
+	SET_VARSIZE(t, VARHDRSZ + total_n * sizeof(int));
+	memcpy(t -> data, x, total_n * sizeof(int));
+    free(x);
+    PG_RETURN_POINTER(t);
 }
 
 /* A || B takes the set union */
@@ -296,42 +295,39 @@ intset_set_union(PG_FUNCTION_ARGS) {
     Intset *B = (Intset *) PG_GETARG_POINTER(1);
     int A_number = (A -> length) / 16  - 1;
     int B_number = (B -> length) / 16  - 1;
-    if (!A_number && !B_number) {
-        PG_RETURN_CSTRING("{}");
-    }
     int i = 0;
     int j = 0;
-    int first = 1;
-    char *result = "{";
+    int *x = malloc((A_number + B_number) * sizeof(int));
+    int total_n = 0;
+
     while (i < A_number && j < B_number) {
         if (A -> data[i] == B -> data[j]) {
-            first = 0;
-            result = psprintf("%s%d,", result, A -> data[i]);
-            i++; j++;
+            x[total_n] = A -> data[i];
+            i++; j++; total_n++;
         } else if (A -> data[i] < B -> data[j]) {
-            first = 0;
-            result = psprintf("%s%d,", result, A -> data[i]);
+            x[total_n] = A -> data[i];
+            total_n++;
+
             i++;
         } else {
-            first = 0;
-            result = psprintf("%s%d,", result, B -> data[j]);
-            j++;
+            x[total_n] = B -> data[j];
+            total_n++; j++;
         }
     }
     while (i < A_number) {
-        first = 0;
-        result = psprintf("%s%d,", result, A -> data[i]);
-        i++;
+        x[total_n] = A -> data[i];
+        total_n++; i++;
     }
     while (j < B_number) {
-        first = 0;
-        result = psprintf("%s%d,", result, B -> data[j]);
-        j++;
+        x[total_n] = B -> data[j];
+        total_n++; j++;
     }
-    if (first) PG_RETURN_CSTRING("{}");
-    result[strlen(result)-1] = 0;
-    result = psprintf("%s}", result);
-    PG_RETURN_CSTRING(result);
+    
+    Intset *t = (Intset *) palloc(VARHDRSZ + total_n * sizeof(int));
+	SET_VARSIZE(t, VARHDRSZ + total_n * sizeof(int));
+	memcpy(t -> data, x, total_n * sizeof(int));
+    free(x);
+    PG_RETURN_POINTER(t);
 }
 
 
@@ -343,40 +339,35 @@ intset_set_disjunction(PG_FUNCTION_ARGS) {
     Intset *B = (Intset *) PG_GETARG_POINTER(1);
     int A_number = (A -> length) / 16  - 1;
     int B_number = (B -> length) / 16  - 1;
-    if (!A_number && !B_number) {
-        PG_RETURN_CSTRING("{}");
-    }
     int i = 0;
     int j = 0;
-    int first = 1;
-    char *result = "{";
+    int *x = malloc((A_number + B_number) * sizeof(int));
+    int total_n = 0;
     while (i < A_number && j < B_number) {
         if (A -> data[i] == B -> data[j]) {
             i++; j++;
         } else if (A -> data[i] < B -> data[j]) {
-            first = 0;
-            result = psprintf("%s%d,", result, A -> data[i]);
-            i++;
+            x[total_n] = A -> data[i];
+            i++; total_n++;
         } else {
-            first = 0;
-            result = psprintf("%s%d,", result, B -> data[j]);
-            j++;
+            x[total_n] = B -> data[j];
+            j++; total_n++;
         }
     }
     while (i < A_number) {
-        first = 0;
-        result = psprintf("%s%d,", result, A -> data[i]);
-        i++;
+        x[total_n] = A -> data[i];
+        i++; total_n++;
     }
     while (j < B_number) {
-        first = 0;
-        result = psprintf("%s%d,", result, B -> data[j]);
-        j++;
+        x[total_n] = B -> data[j];
+        j++; total_n++;
     }
-    if (first) PG_RETURN_CSTRING("{}");
-    result[strlen(result)-1] = 0;
-    result = psprintf("%s}", result);
-    PG_RETURN_CSTRING(result);
+
+    Intset *t = (Intset *) palloc(VARHDRSZ + total_n * sizeof(int));
+	SET_VARSIZE(t, VARHDRSZ + total_n * sizeof(int));
+	memcpy(t -> data, x, total_n * sizeof(int));
+    free(x);
+    PG_RETURN_POINTER(t);
 }
 
 /* A - B takes the set difference */
@@ -387,34 +378,30 @@ intset_set_difference(PG_FUNCTION_ARGS) {
     Intset *B = (Intset *) PG_GETARG_POINTER(1);
     int A_number = (A -> length) / 16  - 1;
     int B_number = (B -> length) / 16  - 1;
-    if (!A_number && !B_number) {
-        PG_RETURN_CSTRING("{}");
-    }
     int i = 0;
     int j = 0;
-    int first = 1;
-    char *result = "{";
+    int *x = malloc((A_number + B_number) * sizeof(int));
+    int total_n = 0;
     while (i < A_number && j < B_number) {
         if (A -> data[i] == B -> data[j]) {
             i++; j++;
         } else if (A -> data[i] < B -> data[j]) {
-            first = 0;
-            result = psprintf("%s%d,", result, A -> data[i]);
-            i++;
+            x[total_n] = A -> data[i];
+            i++; total_n++;
         } else {
             j++;
         }
     }
     while (i < A_number) {
-        first = 0;
-        result = psprintf("%s%d,", result, A -> data[i]);
-        i++;
+        x[total_n] = A -> data[i];
+        i++; total_n++;
     }
 
-    if (first) PG_RETURN_CSTRING("{}");
-    result[strlen(result)-1] = 0;
-    result = psprintf("%s}", result);
-    PG_RETURN_CSTRING(result);
+    Intset *t = (Intset *) palloc(VARHDRSZ + total_n * sizeof(int));
+	SET_VARSIZE(t, VARHDRSZ + total_n * sizeof(int));
+	memcpy(t -> data, x, total_n * sizeof(int));
+    free(x);
+    PG_RETURN_POINTER(t);
 }
 
 
